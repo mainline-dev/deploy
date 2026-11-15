@@ -1,0 +1,43 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  script:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint the scripts
+        run: shellcheck github/report-deploy.sh github/test/test.sh
+      - name: Test the script
+        run: github/test/test.sh
+
+  # Runs the Action the way a team's pipeline does, against a stand-in for
+  # Mainline, to check its inputs reach the script and its output comes back.
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start a stand-in for Mainline
+        run: |
+          python3 github/test/stub_mainline.py 8765 "$RUNNER_TEMP/requests" 200 '{"deployed": 2}' &
+          sleep 1
+      - id: report
+        uses: ./github
+        with:
+          team-id: 3f2a1c4e-0000-4000-8000-000000000001
+          token: test-token
+          url: http://127.0.0.1:8765
+          stories: DBDF9FEF ABCDEF12
+      - name: Check what the Action sent and gave back
+        run: |
+          test "${{ steps.report.outputs.deployed }}" = 2
+          python3 - "$RUNNER_TEMP/requests" <<'PY'
+          import json, sys
+          request = json.loads(open(sys.argv[1]).readline())
+          assert request['path'] == '/api/teams/3f2a1c4e-0000-4000-8000-000000000001/deploys', request['path']
+          assert request['auth'] == 'Bearer test-token', request['auth']
+          assert json.loads(request['body'])['story_ids'] == ['abcdef12', 'dbdf9fef'], request['body']
+          PY

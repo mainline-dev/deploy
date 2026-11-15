@@ -1,0 +1,43 @@
+name: Report a deploy to Mainline
+description: Tells Mainline which stories a deploy put into production, from the story IDs in the deployed commits.
+author: Mainline
+branding:
+  icon: upload-cloud
+  color: blue
+
+inputs:
+  team-id:
+    description: Your Mainline team's ID, from the deploy webhook page in your team settings.
+    required: true
+  token:
+    description: The team's deploy webhook token. Keep it in a secret.
+    required: true
+  url:
+    description: Where Mainline runs, for a self-hosted install.
+    default: https://mainline.dev
+  stories:
+    description: Story IDs to report, separated by spaces, instead of reading them from the commits.
+    default: ''
+  since:
+    description: A commit to read story IDs from, instead of the push's previous head.
+    default: ''
+
+outputs:
+  deployed:
+    description: How many stories Mainline recorded as deployed.
+    value: ${{ steps.report.outputs.deployed }}
+
+runs:
+  using: composite
+  steps:
+    - id: report
+      shell: bash
+      run: ${{ github.action_path }}/report-deploy.sh
+      env:
+        MAINLINE_TEAM_ID: ${{ inputs.team-id }}
+        MAINLINE_TOKEN: ${{ inputs.token }}
+        MAINLINE_URL: ${{ inputs.url }}
+        MAINLINE_STORIES: ${{ inputs.stories }}
+        MAINLINE_SINCE: ${{ inputs.since }}
+        PUSH_BEFORE: ${{ github.event.before }}
+        DEPLOYED_SHA: ${{ github.sha }}
