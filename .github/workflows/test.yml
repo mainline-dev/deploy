@@ -10,9 +10,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Lint the scripts
-        run: shellcheck github/report-deploy.sh github/test/test.sh
+        run: shellcheck report-deploy.sh test/test.sh
       - name: Test the script
-        run: github/test/test.sh
+        run: test/test.sh
 
   # Runs the Action the way a team's pipeline does, against a stand-in for
   # Mainline, to check its inputs reach the script and its output comes back.
@@ -22,10 +22,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Start a stand-in for Mainline
         run: |
-          python3 github/test/stub_mainline.py 8765 "$RUNNER_TEMP/requests" 200 '{"deployed": 2}' &
+          python3 test/stub_mainline.py 8765 "$RUNNER_TEMP/requests" 200 '{"deployed": 2}' &
           sleep 1
       - id: report
-        uses: ./github
+        uses: ./
         with:
           team-id: 3f2a1c4e-0000-4000-8000-000000000001
           token: test-token

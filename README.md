@@ -1,6 +1,96 @@
-# Report deploys to Mainline
+# Report a deploy to Mainline
 
-Tells [Mainline](https://mainline.dev) which stories a deploy put into production, from the story IDs in your commit messages. One folder per pipeline:
+Tells [Mainline](https://mainline.dev) which stories a deploy put into production. Put a story's ID in square brackets in a commit message, run this Action after your deploy, and it reads the story IDs from the deployed commits and reports them to your Mainline team as deployed.
 
-- [GitHub Actions](github/): `mainline-dev/deploy/github@v1`
+## Usage
 
+Add a step after your deploy:
+
+```yaml
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ... your deploy ...
+
+      - uses: mainline-dev/deploy@v1
+        with:
+          team-id: ${{ secrets.MAINLINE_TEAM_ID }}
+          token: ${{ secrets.MAINLINE_DEPLOY_TOKEN }}
+```
+
+Your team's ID and deploy token are on the deploy webhook page in your Mainline team settings. Keep both in secrets.
+
+## Naming a story in a commit
+
+Put the story's ID in square brackets anywhere in the commit message: the eight characters its card shows, or the full ID from Copy ID, in any case.
+
+```
+Guests can pay with a saved card [DBDF9FEF]
+```
+
+Other brackets, such as `[WIP]` or `[skip ci]`, are left alone.
+
+On a push, the Action reads every commit since the branch's previous head, which is why the checkout above fetches the whole history. Otherwise, such as for a push that creates the branch, it reads only the deployed commit. To read from a different commit, give it as `since`. To skip the commits and name the stories yourself, give them as `stories`.
+
+Each story is reported once, and Mainline counts only stories that have started and are not yet released.
+
+## Inputs
+
+| Input | |
+| --- | --- |
+| `team-id` | Your Mainline team's ID. Required. |
+| `token` | The team's deploy webhook token. Required. |
+| `url` | Where Mainline runs, for a self-hosted install. Defaults to `https://mainline.dev`. |
+| `stories` | Story IDs to report, separated by spaces, instead of reading them from the commits. |
+| `since` | A commit to read story IDs from, instead of the push's previous head. |
+
+## Outputs
+
+| Output | |
+| --- | --- |
+| `deployed` | How many stories Mainline recorded as deployed. |
+
+```yaml
+      - id: mainline
+        uses: mainline-dev/deploy@v1
+        with:
+          team-id: ${{ secrets.MAINLINE_TEAM_ID }}
+          token: ${{ secrets.MAINLINE_DEPLOY_TOKEN }}
+      - run: echo "${{ steps.mainline.outputs.deployed }} stories deployed"
+```
+
+## Self-hosted Mainline
+
+If you run Mainline yourself, give its address as `url`:
+
+```yaml
+      - uses: mainline-dev/deploy@v1
+        with:
+          team-id: ${{ secrets.MAINLINE_TEAM_ID }}
+          token: ${{ secrets.MAINLINE_DEPLOY_TOKEN }}
+          url: https://mainline.example.com
+```
+
+## What it does when
+
+- No commit names a story: it says so, tells Mainline nothing, and succeeds with `deployed` as 0.
+- Mainline refuses the report, such as for a wrong token: the step fails and shows Mainline's error.
+
+## Testing
+
+`test/test.sh` runs the script against a stand-in for Mainline. It needs bash, git, curl and Python 3.
+
+## Licence
+
+MIT, see LICENSE. Mainline® is a registered trade mark of Kipple Pty Ltd.

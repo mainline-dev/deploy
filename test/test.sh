@@ -3,7 +3,7 @@
 # makes a throwaway git repository, starts a stub of Mainline's deploy
 # endpoint, runs the script and checks what it sent and said.
 #
-#   github/test/test.sh
+#   test/test.sh
 set -uo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
