@@ -82,6 +82,20 @@ If you run Mainline yourself, give its address as `url`:
           url: https://mainline.example.com
 ```
 
+## Any other pipeline
+
+The Action makes one request, so any pipeline that can run curl can report a deploy. After the deploy, post the story IDs to your team:
+
+```sh
+curl -sf -X POST \
+  "https://mainline.dev/api/teams/$MAINLINE_TEAM_ID/deploys" \
+  -H "Authorization: Bearer $MAINLINE_DEPLOY_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"story_ids": ["DBDF9FEF"]}'
+```
+
+Give each story's eight characters from its card, or its full ID. Mainline answers with `{"deployed": N}`, the number of stories it recorded as deployed. For a self-hosted install, use its address in place of `https://mainline.dev`.
+
 ## What it does when
 
 - No commit names a story: it says so, tells Mainline nothing, and succeeds with `deployed` as 0.
