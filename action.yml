@@ -16,10 +16,13 @@ inputs:
     description: Where Mainline runs, for a self-hosted install.
     default: https://mainline.dev
   stories:
-    description: Story IDs to report, separated by spaces, instead of reading them from the commits.
+    description: Story IDs to report, separated by spaces or commas, instead of reading them from the commits.
     default: ''
   since:
-    description: A commit to read story IDs from, instead of the push's previous head.
+    description: A commit to read the story IDs after, instead of the push's previous head.
+    default: ''
+  tag-pattern:
+    description: Which tags count as the one before, for a deploy of a tag, such as v*.*.*
     default: ''
 
 outputs:
@@ -41,4 +44,5 @@ runs:
         MAINLINE_SINCE: ${{ inputs.since }}
         PUSH_BEFORE: ${{ github.event.before }}
         DEPLOYED_SHA: ${{ github.sha }}
-        DEPLOYED_REF_TYPE: ${{ github.ref_type }}
+        MAINLINE_TAG_PATTERN: ${{ inputs.tag-pattern }}
+        DEPLOYED_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
