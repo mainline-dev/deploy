@@ -24,7 +24,13 @@ if [ -n "${MAINLINE_STORIES:-}" ]; then
   ids="$(tr ',' ' ' <<<"$MAINLINE_STORIES" | tr -s ' ' '\n' | sed '/^$/d')"
 else
   since="${MAINLINE_SINCE:-${PUSH_BEFORE:-}}"
-  if [ -n "$since" ] && [ "$since" != "$none" ]; then
+  if [ "$since" = "$none" ]; then since=''; fi
+  # A shallow checkout or a force-push leaves the previous head out of reach.
+  if [ -n "$since" ] && ! git cat-file -e "$since^{commit}" 2>/dev/null; then
+    echo "::warning::Commit $since is not in this checkout, so only the deployed commit is read. Check out with fetch-depth: 0 to read every commit since it."
+    since=''
+  fi
+  if [ -n "$since" ]; then
     messages="$(git log --format=%B "$since..$deployed_sha")"
   else
     messages="$(git log -1 --format=%B "$deployed_sha")"
@@ -44,9 +50,16 @@ quoted=''
 while read -r id; do quoted+="\"$id\","; done <<<"$ids"
 json="{\"story_ids\":[${quoted%,}]}"
 body="$(mktemp)"
-code="$(curl -sS -o "$body" -w '%{http_code}' -X POST "$url/api/teams/$MAINLINE_TEAM_ID/deploys" \
-  -H "Authorization: Bearer $MAINLINE_TOKEN" -H 'Content-Type: application/json' --data "$json")"
+# Tries again when Mainline is down or busy, and gives up rather than hang.
+reached=0
+code="$(curl -sS -o "$body" -w '%{http_code}' --connect-timeout 10 --max-time 30 --retry 3 --retry-connrefused \
+  -X POST "$url/api/teams/$MAINLINE_TEAM_ID/deploys" \
+  -H "Authorization: Bearer $MAINLINE_TOKEN" -H 'Content-Type: application/json' --data "$json")" || reached=$?
 
+if [ "$reached" -ne 0 ]; then
+  echo "::error::Could not reach Mainline at $url, so the deploy was not reported."
+  exit 1
+fi
 if [ "$code" != '200' ]; then
   echo "::error::Mainline did not take the deploy report ($code): $(cat "$body")"
   exit 1

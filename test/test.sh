@@ -90,6 +90,16 @@ test_reads_only_the_deployed_commit_for_a_new_branch() {
   stop_stub
 }
 
+test_reads_only_the_deployed_commit_when_the_previous_head_is_missing() {
+  repo_with 'Earlier [11111111]' 'Rotate the key [DBDF9FEF]'
+  start_stub
+  run PUSH_BEFORE=1111111111111111111111111111111111111111 DEPLOYED_SHA="$(commit_at 0)"
+  check 'reads only the deployed commit when the previous head is not in the checkout' 'dbdf9fef' "$(sent_ids)"
+  check 'succeeds when the previous head is not in the checkout' '0' "$status"
+  check 'says how to read the whole push' 'yes' "$(grep -q 'fetch-depth: 0' <<<"$out" && echo yes || echo no)"
+  stop_stub
+}
+
 test_reads_from_since_when_given() {
   repo_with 'Long ago [11111111]' 'Earlier [22222222]' 'Rotate the key [DBDF9FEF]'
   start_stub
@@ -151,6 +161,24 @@ test_fails_with_the_error_when_mainline_refuses() {
   check 'fails when Mainline refuses' '1' "$status"
   check 'shows the error Mainline gave' 'yes' "$(grep -q unauthorized <<<"$out" && echo yes || echo no)"
   stop_stub
+}
+
+test_tries_again_when_mainline_is_failing() {
+  repo_with 'Rotate the key [DBDF9FEF]'
+  start_stub 503 '{"error":"unavailable"}'
+  run
+  check 'tries three more times when Mainline is failing' '4' "$(requests)"
+  check 'fails when Mainline keeps failing' '1' "$status"
+  stop_stub
+}
+
+test_fails_with_a_reason_when_mainline_cannot_be_reached() {
+  repo_with 'Rotate the key [DBDF9FEF]'
+  start_stub
+  stop_stub
+  run
+  check 'fails when Mainline cannot be reached' '1' "$status"
+  check 'says Mainline could not be reached' 'yes' "$(grep -q 'Could not reach Mainline' <<<"$out" && echo yes || echo no)"
 }
 
 test_needs_a_team_and_a_token() {

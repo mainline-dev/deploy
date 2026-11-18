@@ -99,7 +99,11 @@ Give each story's eight characters from its card, or its full ID. Mainline answe
 ## What it does when
 
 - No commit names a story: it says so, tells Mainline nothing, and succeeds with `deployed` as 0.
+- The push's previous head is not in the checkout, such as without `fetch-depth: 0` or after a force-push: it warns and reads only the deployed commit.
 - Mainline refuses the report, such as for a wrong token: the step fails and shows Mainline's error.
+- Mainline cannot be reached, or is failing: it tries three more times, then the step fails.
+
+A failed step fails your job, even though the deploy went out. To carry on regardless, add `continue-on-error: true` to the step.
 
 ## Testing
 
