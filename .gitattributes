@@ -1,0 +1,3 @@
+# The scripts run under bash on every runner, Windows included.
+*.sh text eol=lf
+*.py text eol=lf

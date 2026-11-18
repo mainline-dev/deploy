@@ -6,10 +6,15 @@ on:
 
 jobs:
   script:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - name: Lint the scripts
+        if: runner.os == 'Linux'
         run: shellcheck report-deploy.sh test/test.sh
       - name: Test the script
         run: test/test.sh
@@ -17,13 +22,27 @@ jobs:
   # Runs the Action the way a team's pipeline does, against a stand-in for
   # Mainline, to check its inputs reach the script and its output comes back.
   action:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Start a stand-in for Mainline
         run: |
-          python3 test/stub_mainline.py 8765 "$RUNNER_TEMP/requests" 200 '{"deployed": 2}' &
-          sleep 1
+          python="$(command -v python3 || command -v python)"
+          "$python" test/stub_mainline.py 8765 "$RUNNER_TEMP/requests" 200 '{"deployed": 2}' &
+          for _ in $(seq 1 50); do
+            curl -s -o /dev/null -X POST -d '' http://127.0.0.1:8765 && break
+            sleep 0.2
+          done
+          : > "$RUNNER_TEMP/requests"
       - id: report
         uses: ./
         with:
@@ -34,10 +53,22 @@ jobs:
       - name: Check what the Action sent and gave back
         run: |
           test "${{ steps.report.outputs.deployed }}" = 2
-          python3 - "$RUNNER_TEMP/requests" <<'PY'
+          python="$(command -v python3 || command -v python)"
+          "$python" - "$RUNNER_TEMP/requests" <<'PY'
           import json, sys
           request = json.loads(open(sys.argv[1]).readline())
           assert request['path'] == '/api/teams/3f2a1c4e-0000-4000-8000-000000000001/deploys', request['path']
           assert request['auth'] == 'Bearer test-token', request['auth']
           assert json.loads(request['body'])['story_ids'] == ['abcdef12', 'dbdf9fef'], request['body']
           PY
+      # Without stories, it reads this push's own commits from the checkout.
+      # What they name varies, so this checks only that it reads them and counts.
+      - id: commits
+        uses: ./
+        with:
+          team-id: 3f2a1c4e-0000-4000-8000-000000000001
+          token: test-token
+          url: http://127.0.0.1:8765
+      - name: Check it read the pushed commits and gave a count
+        run: |
+          [[ "${{ steps.commits.outputs.deployed }}" =~ ^[0-9]+$ ]]

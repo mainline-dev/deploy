@@ -100,6 +100,59 @@ test_reads_only_the_deployed_commit_when_the_previous_head_is_missing() {
   stop_stub
 }
 
+test_reads_since_the_tag_before_for_a_tag() {
+  repo_with 'Last release [11111111]' 'Rotate the key [DBDF9FEF]' 'Fix the test [ABCDEF12]'
+  git -C "$work" tag v1 "$(commit_at 2)"
+  git -C "$work" tag v2
+  start_stub
+  run DEPLOYED_REF_TYPE=tag PUSH_BEFORE=0000000000000000000000000000000000000000 DEPLOYED_SHA="$(commit_at 0)"
+  check 'reads every commit since the tag before, for a tag' $'abcdef12\ndbdf9fef' "$(sent_ids)"
+  stop_stub
+}
+
+test_reads_from_the_previous_head_for_a_moved_tag() {
+  repo_with 'Last release [11111111]' 'Rotate the key [DBDF9FEF]' 'Fix the test [ABCDEF12]'
+  git -C "$work" tag v1 "$(commit_at 2)"
+  start_stub
+  run DEPLOYED_REF_TYPE=tag PUSH_BEFORE="$(commit_at 1)" DEPLOYED_SHA="$(commit_at 0)"
+  check 'reads from the previous head for a tag that moved' 'abcdef12' "$(sent_ids)"
+  stop_stub
+}
+
+test_reads_only_the_deployed_commit_for_the_first_tag() {
+  repo_with 'Earlier [11111111]' 'Rotate the key [DBDF9FEF]'
+  git -C "$work" tag v1
+  start_stub
+  run DEPLOYED_REF_TYPE=tag DEPLOYED_SHA="$(commit_at 0)"
+  check 'reads only the deployed commit for the first tag' 'dbdf9fef' "$(sent_ids)"
+  check 'says nothing of the checkout for the first tag' 'no' "$(grep -q 'fetch-depth' <<<"$out" && echo yes || echo no)"
+  stop_stub
+}
+
+test_says_when_a_shallow_checkout_hides_the_tag_before() {
+  repo_with 'Last release [11111111]' 'Rotate the key [DBDF9FEF]'
+  git -C "$work" tag v1 "$(commit_at 1)"
+  git -C "$work" tag v2
+  shallow="$(mktemp -d)"
+  git clone -q --depth 1 "file://$work" "$shallow"
+  work="$shallow"
+  start_stub
+  run DEPLOYED_REF_TYPE=tag
+  check 'reads only the deployed commit for a tag in a shallow checkout' 'dbdf9fef' "$(sent_ids)"
+  check 'says how to read back to the tag before' 'yes' "$(grep -q 'fetch-depth: 0' <<<"$out" && echo yes || echo no)"
+  stop_stub
+}
+
+test_warns_in_the_way_the_pipeline_shows() {
+  repo_with 'Rotate the key [DBDF9FEF]'
+  start_stub
+  run GITHUB_ACTIONS=true PUSH_BEFORE=1111111111111111111111111111111111111111
+  check 'marks a warning for GitHub Actions' 'yes' "$(grep -q '^::warning::' <<<"$out" && echo yes || echo no)"
+  run GITHUB_ACTIONS= PUSH_BEFORE=1111111111111111111111111111111111111111
+  check 'gives a plain warning in any other pipeline' 'yes' "$(grep -q '^Warning: ' <<<"$out" && echo yes || echo no)"
+  stop_stub
+}
+
 test_reads_from_since_when_given() {
   repo_with 'Long ago [11111111]' 'Earlier [22222222]' 'Rotate the key [DBDF9FEF]'
   start_stub
