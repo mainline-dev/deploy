@@ -7,6 +7,7 @@ is told to, so the tests can see what the Action sent.
 import json
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from socketserver import TCPServer
 
 PORT, RECORD, STATUS, BODY = int(sys.argv[1]), sys.argv[2], int(sys.argv[3]), sys.argv[4]
 
@@ -26,4 +27,12 @@ class Stub(BaseHTTPRequestHandler):
         pass
 
 
-HTTPServer(('127.0.0.1', PORT), Stub).serve_forever()
+class Server(HTTPServer):
+    # HTTPServer looks up the machine's name as it starts, which takes half a
+    # minute on GitHub's macOS runners. Nothing here needs the name.
+    def server_bind(self):
+        TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
+
+
+Server(('127.0.0.1', PORT), Stub).serve_forever()
